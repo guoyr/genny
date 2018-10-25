@@ -16,6 +16,7 @@
 
 #include <gennylib/Actor.hpp>
 #include <gennylib/ActorProducer.hpp>
+#include <gennylib/ActorVector.hpp>
 #include <gennylib/InvalidConfigurationException.hpp>
 #include <gennylib/Orchestrator.hpp>
 #include <gennylib/conventions.hpp>
@@ -462,8 +463,8 @@ public:
      *   across Actors and threads.
      * @param thread the thread number of this Actor, if any.
      */
-    auto timer(const std::string& operationName, unsigned int thread = 0) const {
-        auto name = this->metricsName(operationName, thread);
+    auto timer(const std::string& operationName, ActorId id = 0u) const {
+        auto name = this->metricsName(operationName, id);
         return this->_workload->_registry->timer(name);
     }
 
@@ -476,8 +477,8 @@ public:
      *   across Actors and threads.
      * @param thread the thread number of this Actor, if any.
      */
-    auto gauge(const std::string& operationName, unsigned int thread = 0) const {
-        auto name = this->metricsName(operationName, thread);
+    auto gauge(const std::string& operationName, ActorId id = 0u) const {
+        auto name = this->metricsName(operationName, id);
         return this->_workload->_registry->gauge(name);
     }
 
@@ -491,8 +492,8 @@ public:
      *   across Actors and threads.
      * @param thread the thread number of this Actor, if any.
      */
-    auto counter(const std::string& operationName, unsigned int thread = 0) const {
-        auto name = this->metricsName(operationName, thread);
+    auto counter(const std::string& operationName, ActorId id = 0u) const {
+        auto name = this->metricsName(operationName, id);
         return this->_workload->_registry->counter(name);
     }
 
@@ -526,8 +527,8 @@ private:
      * @param thread the thread number of the Actor owning the object.
      * @return the fully-qualified metrics name e.g. "MyActor.0.inserts".
      */
-    std::string metricsName(const std::string& operation, unsigned int thread) const {
-        return this->get<std::string>("Name") + "." + std::to_string(thread) + "." + operation;
+    std::string metricsName(const std::string& operation, ActorId id) const {
+        return this->get<std::string>("Name") + ".id-" + std::to_string(id) + "." + operation;
     }
 
     static std::unordered_map<genny::PhaseNumber, std::unique_ptr<PhaseContext>>
@@ -581,6 +582,19 @@ private:
     YAML::Node _node;
     const ActorContext* _actor;
 };
+
+inline ActorProducer makeThreadedProducer(ActorProducer producer){
+    return [producer{std::move(producer)}](ActorContext& context) {
+        ActorProducer::result_type out;
+
+        auto threads = context.get<int>("Threads");
+        for (int i = 0; i < threads; ++i)
+            for (auto & actor : producer(context))
+                out.emplace_back(std::move(actor));
+
+        return out;
+    };
+}
 
 }  // namespace genny
 

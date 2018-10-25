@@ -51,9 +51,9 @@ int genny::driver::DefaultDriver::run(const genny::driver::ProgramOptions& optio
     auto orchestrator = Orchestrator{};
 
     auto producers = std::vector<genny::ActorProducer>{
-        &genny::actor::HelloWorld::producer,
-        &genny::actor::Insert::producer,
-        &genny::actor::InsertRemove::producer,
+        genny::makeThreadedProducer(&genny::actor::HelloWorld::producer),
+        genny::makeThreadedProducer(&genny::actor::Insert::producer),
+        genny::makeThreadedProducer(&genny::actor::InsertRemove::producer),
         // NextActorProducerHere
     };
     // clang-format on
