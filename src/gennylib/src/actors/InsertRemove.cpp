@@ -10,7 +10,9 @@
 #include <gennylib/context.hpp>
 #include <gennylib/value_generators.hpp>
 
-struct genny::actor::InsertRemove::PhaseConfig {
+namespace genny{
+
+struct actor::InsertRemove::PhaseConfig {
     PhaseConfig(mongocxx::database db,
                 const std::string collection_name,
                 std::mt19937_64& rng,
@@ -32,7 +34,7 @@ struct genny::actor::InsertRemove::PhaseConfig {
     bsoncxx::document::value myDoc;
 };
 
-void genny::actor::InsertRemove::run() {
+void actor::InsertRemove::run() {
     for (auto&& [phase, config] : _loop) {
         for (auto&& _ : config) {
             BOOST_LOG_TRIVIAL(info) << " Inserting and then removing";
@@ -48,7 +50,7 @@ void genny::actor::InsertRemove::run() {
     }
 }
 
-genny::actor::InsertRemove::InsertRemove(genny::ActorContext& context)
+actor::InsertRemove::InsertRemove(ActorContext& context)
     : _rng{context.workload().createRNG()},
       _id{nextActorId()},
       _insertTimer{context.timer("insert", _id)},
@@ -56,7 +58,7 @@ genny::actor::InsertRemove::InsertRemove(genny::ActorContext& context)
       _client{std::move(context.client())},
       _loop{context, _rng, _client, _id} {}
 
-genny::ActorVector genny::actor::InsertRemove::producer(genny::ActorContext& context) {
+ActorVector actor::InsertRemove::producer(ActorContext& context) {
     if (context.get<std::string>("Type") != "InsertRemove") {
         return {};
     }
@@ -65,3 +67,5 @@ genny::ActorVector genny::actor::InsertRemove::producer(genny::ActorContext& con
     out.emplace_back(std::make_unique<actor::InsertRemove>(context));
     return out;
 }
+
+} // genny

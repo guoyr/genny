@@ -13,7 +13,9 @@
 #include <gennylib/context.hpp>
 #include <gennylib/value_generators.hpp>
 
-struct genny::actor::Insert::PhaseConfig {
+namespace genny{
+
+struct actor::Insert::PhaseConfig {
     mongocxx::collection collection;
     std::unique_ptr<value_generators::DocumentGenerator> json_document;
 
@@ -22,7 +24,7 @@ struct genny::actor::Insert::PhaseConfig {
           json_document{value_generators::makeDoc(phaseContext.get("Document"), rng)} {}
 };
 
-void genny::actor::Insert::run() {
+void actor::Insert::run() {
     for (auto&& [phase, config] : _loop) {
         for (const auto&& _ : config) {
             auto op = _insertTimer.raii();
@@ -35,7 +37,7 @@ void genny::actor::Insert::run() {
     }
 }
 
-genny::actor::Insert::Insert(genny::ActorContext& context)
+actor::Insert::Insert(ActorContext& context)
     : _rng{context.workload().createRNG()},
       _id{nextActorId()},
       _insertTimer{context.timer("insert", _id)},
@@ -43,7 +45,7 @@ genny::actor::Insert::Insert(genny::ActorContext& context)
       _client{std::move(context.client())},
       _loop{context, _rng, (*_client)[context.get<std::string>("Database")]} {}
 
-genny::ActorVector genny::actor::Insert::producer(genny::ActorContext& context) {
+ActorVector actor::Insert::producer(ActorContext& context) {
     if (context.get<std::string>("Type") != "Insert") {
         return {};
     }
@@ -52,3 +54,5 @@ genny::ActorVector genny::actor::Insert::producer(genny::ActorContext& context) 
     out.emplace_back(std::make_unique<actor::Insert>(context));
     return out;
 }
+
+} // genny
