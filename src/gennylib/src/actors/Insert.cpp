@@ -20,8 +20,9 @@ struct actor::Insert::PhaseConfig {
     std::unique_ptr<value_generators::DocumentGenerator> json_document;
 
     PhaseConfig(PhaseContext& phaseContext, std::mt19937_64& rng, const mongocxx::database& db)
-        : collection{db[phaseContext.get<std::string>("Collection")]},
-          json_document{value_generators::makeDoc(phaseContext.get("Document"), rng)} {}
+        : collection{db[yaml::get<std::string>(phaseContext.config(), "Collection")]},
+          json_document{
+              value_generators::makeDoc(yaml::get(phaseContext.config(), "Document"), rng)} {}
 };
 
 void actor::Insert::run() {
@@ -43,10 +44,10 @@ actor::Insert::Insert(ActorContext& context)
       _insertTimer{context.timer("insert", _id)},
       _operations{context.counter("operations", _id)},
       _client{std::move(context.client())},
-      _loop{context, _rng, (*_client)[context.get<std::string>("Database")]} {}
+      _loop{context, _rng, (*_client)[yaml::get<std::string>(context.config(),"Database")]} {}
 
 ActorVector actor::Insert::producer(ActorContext& context) {
-    if (context.get<std::string>("Type") != "Insert") {
+    if (yaml::get<std::string>(context.config(), "Type") != "Insert") {
         return {};
     }
 

@@ -25,8 +25,8 @@ struct actor::InsertRemove::PhaseConfig {
                 std::mt19937_64& rng,
                 mongocxx::pool::entry& client,
                 int id)
-        : PhaseConfig((*client)[context.get<std::string>("Database")],
-                      context.get<std::string>("Collection"),
+        : PhaseConfig((*client)[yaml::get<std::string>(context.config(), "Database")],
+                      yaml::get<std::string>(context.config(), "Collection"),
                       rng,
                       id) {}
     mongocxx::database database;
@@ -59,7 +59,7 @@ actor::InsertRemove::InsertRemove(ActorContext& context)
       _loop{context, _rng, _client, _id} {}
 
 ActorVector actor::InsertRemove::producer(ActorContext& context) {
-    if (context.get<std::string>("Type") != "InsertRemove") {
+    if (yaml::get<std::string>(context.config(), "Type") != "InsertRemove") {
         return {};
     }
 

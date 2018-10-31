@@ -9,7 +9,8 @@ namespace genny {
 struct actor::HelloWorld::PhaseConfig {
     std::string message;
     explicit PhaseConfig(PhaseContext& context)
-        : message{context.get<std::string, false>("Message").value_or("Hello, World!")} {}
+        : message{yaml::get<std::string, false>(context.config(), "Message")
+                      .value_or("Hello, World!")} {}
 };
 
 void actor::HelloWorld::run() {
@@ -28,7 +29,7 @@ actor::HelloWorld::HelloWorld(ActorContext& context)
       _loop{context} {}
 
 ActorVector actor::HelloWorld::producer(ActorContext& context) {
-    if (context.get<std::string>("Type") != "HelloWorld") {
+    if (yaml::get<std::string>(context.config(), "Type") != "HelloWorld") {
         return {};
     }
 

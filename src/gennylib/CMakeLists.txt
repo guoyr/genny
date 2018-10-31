@@ -7,6 +7,8 @@ add_library(gennylib SHARED
     include/gennylib/version.hpp
                  src/version.cpp
 
+    src/yaml.cpp
+
         include/gennylib/context.hpp
         src/context.cpp
 

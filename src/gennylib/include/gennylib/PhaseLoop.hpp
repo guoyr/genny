@@ -13,6 +13,8 @@
 #include <gennylib/InvalidConfigurationException.hpp>
 #include <gennylib/Orchestrator.hpp>
 #include <gennylib/context.hpp>
+#include <gennylib/yaml-forward.hpp>
+#include <gennylib/yaml-private.hh>
 
 /**
  * @file
@@ -64,8 +66,9 @@ public:
     }
 
     explicit IterationCompletionCheck(PhaseContext& phaseContext)
-        : IterationCompletionCheck(phaseContext.get<std::chrono::milliseconds, false>("Duration"),
-                                   phaseContext.get<int, false>("Repeat")) {}
+        : IterationCompletionCheck(
+              yaml::get<std::chrono::milliseconds, false>(phaseContext.config(), "Duration"),
+              yaml::get<int, false>(phaseContext.config(), "Repeat")) {}
 
     std::chrono::steady_clock::time_point computeReferenceStartingPoint() const {
         // avoid doing now() if no minDuration configured

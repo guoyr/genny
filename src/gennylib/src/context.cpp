@@ -3,9 +3,9 @@
 
 // Helper method to convert Actors:[...] to ActorContexts
 std::vector<std::unique_ptr<genny::ActorContext>> genny::WorkloadContext::constructActorContexts(
-    const YAML::Node& node, WorkloadContext* workloadContext) {
+    const yaml::Node& node, WorkloadContext* workloadContext) {
     auto out = std::vector<std::unique_ptr<genny::ActorContext>>{};
-    for (const auto& actor : get_static(node, "Actors")) {
+    for (const auto& actor : yaml::get(node, "Actors")) {
         out.emplace_back(std::make_unique<genny::ActorContext>(actor, *workloadContext));
     }
     return out;
@@ -24,18 +24,20 @@ genny::ActorVector genny::WorkloadContext::constructActors(
 
 // Helper method to convert Phases:[...] to PhaseContexts
 std::unordered_map<genny::PhaseNumber, std::unique_ptr<genny::PhaseContext>>
-genny::ActorContext::constructPhaseContexts(const YAML::Node&, genny::ActorContext* actorContext) {
+genny::ActorContext::constructPhaseContexts(const yaml::Node&, genny::ActorContext* actorContext) {
     std::unordered_map<genny::PhaseNumber, std::unique_ptr<genny::PhaseContext>> out;
-    auto phases = actorContext->get<YAML::Node, false>("Phases");
+    auto phases = yaml::get<yaml::Node, false>(actorContext->config(), "Phases");
     if (!phases) {
         return out;
     }
 
     int index = 0;
-    for (const auto& phase : *phases) {
+    for (const yaml::Node& phase : *phases) {
         auto configuredIndex = phase["Phase"].as<genny::PhaseNumber>(index);
-        auto [it, success] = out.try_emplace(
-            configuredIndex, std::make_unique<genny::PhaseContext>(phase, *actorContext));
+        auto[it, success] =
+            out.try_emplace(configuredIndex,
+                            std::make_unique<genny::PhaseContext>(
+                                yaml::Pair{phase, actorContext->config()}, *actorContext));
         if (!success) {
             std::stringstream msg;
             msg << "Duplicate phase " << configuredIndex;

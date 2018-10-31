@@ -11,10 +11,9 @@
 
 #include <mongocxx/instance.hpp>
 
-#include <yaml-cpp/yaml.h>
-
 #include <gennylib/MetricsReporter.hpp>
 #include <gennylib/context.hpp>
+#include <gennylib/yaml-private.hh>
 
 #include <gennylib/actors/HelloWorld.hpp>
 #include <gennylib/actors/Insert.hpp>
@@ -22,21 +21,6 @@
 // NextActorHeaderHere
 
 #include "DefaultDriver.hpp"
-
-
-namespace {
-
-YAML::Node loadConfig(const std::string& fileName) {
-    try {
-        return YAML::LoadFile(fileName);
-    } catch (const std::exception& ex) {
-        BOOST_LOG_TRIVIAL(error) << "Error loading yaml from " << fileName << ": " << ex.what();
-        throw;
-    }
-}
-
-}  // namespace
-
 
 int genny::driver::DefaultDriver::run(const genny::driver::ProgramOptions& options) const {
 
@@ -47,9 +31,8 @@ int genny::driver::DefaultDriver::run(const genny::driver::ProgramOptions& optio
 
     mongocxx::instance instance{};
 
-    auto yaml = loadConfig(options.workloadFileName);
+    auto config = yaml::loadFile(options.workloadFileName);
     auto orchestrator = Orchestrator{};
-
     auto producers = std::vector<genny::ActorProducer>{
         genny::makeThreadedProducer(&genny::actor::HelloWorld::producer),
         genny::makeThreadedProducer(&genny::actor::Insert::producer),
@@ -59,7 +42,7 @@ int genny::driver::DefaultDriver::run(const genny::driver::ProgramOptions& optio
     // clang-format on
 
     auto workloadContext =
-        WorkloadContext{yaml, metrics, orchestrator, options.mongoUri, producers};
+        WorkloadContext{config, metrics, orchestrator, options.mongoUri, producers};
 
     orchestrator.addRequiredTokens(
         int(std::distance(workloadContext.actors().begin(), workloadContext.actors().end())));
@@ -133,6 +116,8 @@ genny::driver::ProgramOptions::ProgramOptions(int argc, char** argv) {
     description.add_options()
         ("help,h",
             "Show help message")
+        ("list-actors",
+            "List all actors available for use")
         ("metrics-format,m",
              po::value<std::string>()->default_value("csv"),
              "Metrics format to use")
