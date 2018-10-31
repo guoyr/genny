@@ -4,46 +4,19 @@ project(gennylib VERSION 0.0.1 LANGUAGES CXX)
 
 # Eventually will move gennylib/actors into its own lib so keep those files together
 add_library(gennylib SHARED
-    include/gennylib/version.hpp
-                 src/version.cpp
+    src/version.cpp
 
     src/yaml.cpp
+    src/context.cpp
+    src/Orchestrator.cpp
 
-        include/gennylib/context.hpp
-        src/context.cpp
-
-    include/gennylib/conventions.hpp
-
-    include/gennylib/metrics.hpp
-
-    include/gennylib/MetricsReporter.hpp
-
-    include/gennylib/InvalidConfigurationException.hpp
-
-    src/value_generators/parser.hh
     src/value_generators/parser.cpp
-    include/gennylib/value_generators.hpp
-    src/value_generators/generators-private.hh
     src/value_generators/value_generators.cpp
     src/value_generators/generators-private.cpp
 
-    include/gennylib/Actor.hpp
-    include/gennylib/ActorProducer.hpp
-    include/gennylib/ActorVector.hpp
-
-    include/gennylib/PhaseLoop.hpp
-
-        include/gennylib/Orchestrator.hpp
-                 src/Orchestrator.cpp
-
-    include/gennylib/actors/HelloWorld.hpp
-                 src/actors/HelloWorld.cpp
-
-    include/gennylib/actors/Insert.hpp
-                 src/actors/Insert.cpp
-    include/gennylib/actors/InsertRemove.hpp
-                 src/actors/InsertRemove.cpp
-
+    src/actors/HelloWorld.cpp
+    src/actors/Insert.cpp
+    src/actors/InsertRemove.cpp
     # NextActorHere
 )
 
