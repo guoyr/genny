@@ -16,23 +16,40 @@
 namespace genny{
 
 struct actor::Insert::PhaseConfig {
+    PhaseConfig(const yaml::Pair& node) {
+        collection = yaml::get<std::string>(node, "Collection");
+        db = yaml::get<std::string>(node, "Database");
+        document = yaml::get<yaml::Node>(node,"Document");
+    }
+
+    std::string collection;
+    std::string db;
+    yaml::Node document;
+};
+
+
+struct actor::Insert::PhaseState {
+    PhaseState(PhaseContext& context, std::mt19937_64& rng, mongocxx::pool::entry& client, int id)
+        : config(context.config()),
+          database{client->database(config.db)},
+          collection{database.collection(config.collection)},
+          json_document{value_generators::makeDoc(config.document, rng)} {}
+
+    PhaseConfig config;
+
+    mongocxx::database database;
     mongocxx::collection collection;
     std::unique_ptr<value_generators::DocumentGenerator> json_document;
-
-    PhaseConfig(PhaseContext& phaseContext, std::mt19937_64& rng, const mongocxx::database& db)
-        : collection{db[yaml::get<std::string>(phaseContext.config(), "Collection")]},
-          json_document{
-              value_generators::makeDoc(yaml::get(phaseContext.config(), "Document"), rng)} {}
 };
 
 void actor::Insert::run() {
-    for (auto&& [phase, config] : _loop) {
-        for (const auto&& _ : config) {
+    for (auto&& [phase, state] : _loop) {
+        for (const auto&& _ : state) {
             auto op = _insertTimer.raii();
             bsoncxx::builder::stream::document mydoc{};
-            auto view = config->json_document->view(mydoc);
+            auto view = state->json_document->view(mydoc);
             BOOST_LOG_TRIVIAL(info) << " Inserting " << bsoncxx::to_json(view);
-            config->collection.insert_one(view);
+            state->collection.insert_one(view);
             _operations.incr();
         }
     }
@@ -44,7 +61,7 @@ actor::Insert::Insert(ActorContext& context)
       _insertTimer{context.timer("insert", _id)},
       _operations{context.counter("operations", _id)},
       _client{std::move(context.client())},
-      _loop{context, _rng, (*_client)[yaml::get<std::string>(context.config(),"Database")]} {}
+      _loop{context, _rng, _client, _id} {}
 
 ActorVector actor::Insert::producer(ActorContext& context) {
     if (yaml::get<std::string>(context.config(), "Type") != "Insert") {

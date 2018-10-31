@@ -13,8 +13,6 @@
 #include <gennylib/InvalidConfigurationException.hpp>
 #include <gennylib/Orchestrator.hpp>
 #include <gennylib/context.hpp>
-#include <gennylib/yaml-forward.hpp>
-#include <gennylib/yaml-private.hh>
 
 /**
  * @file
@@ -45,7 +43,7 @@ namespace V1 {
 class IterationCompletionCheck final {
 
 public:
-    explicit IterationCompletionCheck() : IterationCompletionCheck(std::nullopt, std::nullopt) {}
+    explicit IterationCompletionCheck() : IterationCompletionCheck(std::nullopt, 1) {}
 
     IterationCompletionCheck(std::optional<std::chrono::milliseconds> minDuration,
                              std::optional<int> minIterations)
@@ -64,11 +62,6 @@ public:
             throw InvalidConfigurationException(str.str());
         }
     }
-
-    explicit IterationCompletionCheck(PhaseContext& phaseContext)
-        : IterationCompletionCheck(
-              yaml::get<std::chrono::milliseconds, false>(phaseContext.config(), "Duration"),
-              yaml::get<int, false>(phaseContext.config(), "Repeat")) {}
 
     std::chrono::steady_clock::time_point computeReferenceStartingPoint() const {
         // avoid doing now() if no minDuration configured
@@ -235,6 +228,12 @@ public:
         static_assert(std::is_constructible_v<T, Args...>);
     }
 
+    static auto makeIterationCheck(const yaml::Pair& config) {
+        return std::make_unique<IterationCompletionCheck>(
+            yaml::get<std::chrono::milliseconds, false>(config, "Duration"),
+            yaml::get<int, false>(config, "Repeat"));
+    }
+
     /**
      * `args` are forwarded as the T value's constructor-args
      */
@@ -244,7 +243,7 @@ public:
                PhaseNumber currentPhase,
                Args&&... args)
         : _orchestrator{orchestrator},
-          _iterationCheck{std::make_unique<IterationCompletionCheck>(phaseContext)},
+          _iterationCheck{makeIterationCheck(phaseContext.config())},
           _currentPhase{currentPhase},
           _value{std::make_unique<T>(std::forward<Args>(args)...)} {
         static_assert(std::is_constructible_v<T, Args...>);
@@ -290,9 +289,9 @@ public:
 
 private:
     Orchestrator& _orchestrator;
-    const std::unique_ptr<const IterationCompletionCheck> _iterationCheck;
+    std::unique_ptr<const IterationCompletionCheck> _iterationCheck;
     const PhaseNumber _currentPhase;
-    const std::unique_ptr<T> _value;
+    std::unique_ptr<T> _value;
 
 };  // class ActorPhase
 
@@ -525,18 +524,16 @@ private:
         static_assert(std::is_constructible_v<V1::ActorPhase<T>, Orchestrator&, PhaseContext&, PhaseNumber, PhaseContext&, Args...>);
         // clang-format on
 
-        V1::PhaseMap<T> out;
+        using MapT = V1::PhaseMap<T>;
+        using KeyT = typename MapT::key_type;
+        using ValueT = typename MapT::mapped_type;
+
+        MapT out;
         for (auto&& [num, phaseContext] : actorContext.phases()) {
-            auto [it, success] = out.try_emplace(
-                // key
-                num,
-                // args to ActorPhase<T> ctor:
-                actorContext.orchestrator(),
-                *phaseContext,
-                num,
-                // last arg(s) get forwarded to T ctor (via forward inside of make_unique)
-                *phaseContext,
-                std::forward<Args>(args)...);
+            auto key = KeyT(num);
+            auto value = T(*phaseContext, std::forward<Args>(args)...);
+            auto actor = ValueT(actorContext.orchestrator(), *phaseContext, num, std::move(value));
+            auto [it, success] = out.emplace(key, std::move(actor));
             if (!success) {
                 // This should never happen because genny::ActorContext::constructPhaseContexts
                 // ensures we can't configure duplicate Phases.

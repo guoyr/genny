@@ -16,6 +16,9 @@
 namespace genny::actor {
 
 class Insert : public genny::Actor {
+public:
+    struct PhaseConfig;
+    struct PhaseState;
 
 public:
     explicit Insert(ActorContext& context);
@@ -34,8 +37,7 @@ private:
     metrics::Counter _operations;
     mongocxx::pool::entry _client;
 
-    struct PhaseConfig;
-    PhaseLoop<PhaseConfig> _loop;
+    PhaseLoop<PhaseState> _loop;
 };
 
 }  // namespace genny::actor

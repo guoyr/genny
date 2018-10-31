@@ -10,6 +10,9 @@
 namespace genny::actor {
 
 class HelloWorld : public genny::Actor {
+public:
+    struct PhaseConfig;
+    struct PhaseState;
 
 public:
     explicit HelloWorld(ActorContext& context);
@@ -25,8 +28,7 @@ private:
     metrics::Timer _outputTimer;
     metrics::Counter _operations;
 
-    struct PhaseConfig;
-    PhaseLoop<PhaseConfig> _loop;
+    PhaseLoop<PhaseState> _loop;
 };
 
 }  // namespace genny::actor

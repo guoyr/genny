@@ -7,17 +7,25 @@
 namespace genny {
 
 struct actor::HelloWorld::PhaseConfig {
+    PhaseConfig(const yaml::Pair& node) {
+        message = yaml::get<std::string, false>(node, "Message").value_or("Hello, World!");
+    }
+
     std::string message;
-    explicit PhaseConfig(PhaseContext& context)
-        : message{yaml::get<std::string, false>(context.config(), "Message")
-                      .value_or("Hello, World!")} {}
+};
+
+
+struct actor::HelloWorld::PhaseState {
+    explicit PhaseState(PhaseContext& context) : config(context.config()) {}
+
+    PhaseConfig config;
 };
 
 void actor::HelloWorld::run() {
-    for (auto&& [phase, config] : _loop) {
-        for (auto _ : config) {
+    for (auto&& [phase, state] : _loop) {
+        for (auto _ : state) {
             auto op = this->_outputTimer.raii();
-            BOOST_LOG_TRIVIAL(info) << config->message;
+            BOOST_LOG_TRIVIAL(info) << state->config.message;
         }
     }
 }

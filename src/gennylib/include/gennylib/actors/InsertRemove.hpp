@@ -18,6 +18,9 @@ namespace genny::actor {
  * insert and each remove.
  */
 class InsertRemove : public Actor {
+public:
+    struct PhaseConfig;
+    struct PhaseState;
 
 public:
     explicit InsertRemove(ActorContext& context);
@@ -36,8 +39,7 @@ private:
     metrics::Timer _removeTimer;
     mongocxx::pool::entry _client;
 
-    struct PhaseConfig;
-    PhaseLoop<PhaseConfig> _loop;
+    PhaseLoop<PhaseState> _loop;
 };
 
 }  // namespace genny::actor
