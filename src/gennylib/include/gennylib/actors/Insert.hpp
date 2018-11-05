@@ -7,26 +7,23 @@
 
 #include <mongocxx/pool.hpp>
 
-#include <yaml-cpp/yaml.h>
-
 #include <gennylib/Actor.hpp>
 #include <gennylib/PhaseLoop.hpp>
-#include <gennylib/context.hpp>
+#include <gennylib/metrics.hpp>
 
 namespace genny::actor {
 
 class Insert : public genny::Actor {
+
 public:
     struct PhaseConfig;
-    struct PhaseState;
+    struct ActorConfig;
 
 public:
     explicit Insert(ActorContext& context);
     ~Insert() = default;
 
     void run() override;
-
-    static ActorVector producer(ActorContext& context);
 
 private:
     std::mt19937_64 _rng;
@@ -37,6 +34,7 @@ private:
     metrics::Counter _operations;
     mongocxx::pool::entry _client;
 
+    struct PhaseState;
     PhaseLoop<PhaseState> _loop;
 };
 

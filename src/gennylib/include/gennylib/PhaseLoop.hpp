@@ -11,6 +11,7 @@
 #include <utility>
 
 #include <gennylib/InvalidConfigurationException.hpp>
+#include <gennylib/Iterable.hpp>
 #include <gennylib/Orchestrator.hpp>
 #include <gennylib/context.hpp>
 
@@ -228,10 +229,14 @@ public:
         static_assert(std::is_constructible_v<T, Args...>);
     }
 
-    static auto makeIterationCheck(const yaml::Pair& config) {
-        return std::make_unique<IterationCompletionCheck>(
-            yaml::get<std::chrono::milliseconds, false>(config, "Duration"),
-            yaml::get<int, false>(config, "Repeat"));
+    template<typename ConfigPtr>
+    static auto makeIterationCheck(ConfigPtr config){
+        auto itConfig = std::dynamic_pointer_cast<Iterable::PhaseConfig>(config);
+        if(!itConfig)
+            return std::make_unique<IterationCompletionCheck>();
+
+        return std::make_unique<IterationCompletionCheck>(itConfig->iterationDuration,
+                                                          itConfig->iterationRepeat);
     }
 
     /**

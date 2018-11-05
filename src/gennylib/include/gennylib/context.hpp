@@ -3,8 +3,11 @@
 
 #include <functional>
 #include <iterator>
+#include <map>
+#include <memory>
 #include <optional>
 #include <random>
+#include <string>
 #include <type_traits>
 #include <vector>
 
@@ -12,15 +15,15 @@
 
 #include <mongocxx/pool.hpp>
 
+#include <yaml-cpp/yaml.h>
+
 #include <gennylib/Actor.hpp>
-#include <gennylib/ActorProducer.hpp>
 #include <gennylib/ActorVector.hpp>
 #include <gennylib/InvalidConfigurationException.hpp>
 #include <gennylib/Orchestrator.hpp>
 #include <gennylib/conventions.hpp>
 #include <gennylib/metrics.hpp>
-#include <gennylib/yaml-forward.hpp>
-#include <gennylib/yaml-private.hh>
+#include <gennylib/config.hpp>
 
 /**
  * This file defines `WorkloadContext`, `ActorContext`, and `PhaseContext` which provide access
@@ -32,8 +35,12 @@
 
 namespace genny {
 
+class PhaseContext;
+class ActorContext;
+
 /**
  * Represents the top-level/"global" configuration and context for configuring actors.
+ * Call `.get()` to access top-level yaml configs.
  */
 class WorkloadContext {
 public:
@@ -41,28 +48,22 @@ public:
      * @param producers
      *  producers are called eagerly at construction-time.
      */
-    WorkloadContext(yaml::Node config,
+    WorkloadContext(std::shared_ptr<config::WorkloadConfig> config,
                     metrics::Registry& registry,
                     Orchestrator& orchestrator,
-                    const std::string& mongoUri,
-                    const std::vector<ActorProducer>& producers)
+                    const std::string& mongoUri)
         : _config{std::move(config)},
           _registry{&registry},
           _orchestrator{&orchestrator},
           // TODO: make this optional and default to mongodb://localhost:27017
           _clientPool{mongocxx::uri{mongoUri}},
           _done{false} {
-        // This is good enough for now. Later can add a WorkloadContextValidator concept
-        // and wire in a vector of those similar to how we do with the vector of Producers.
-        if (yaml::get<std::string>(_config, "SchemaVersion") != "2018-07-01") {
-            throw InvalidConfigurationException("Invalid schema version");
-        }
-
         // Default value selected from random.org, by selecting 2 random numbers
         // between 1 and 10^9 and concatenating.
-        rng.seed(yaml::get<int, false>(config, "RandomSeed").value_or(269849313357703264));
+        rng.seed(_config->randomSeed);
+
         _actorContexts = constructActorContexts(_config, this);
-        _actors = constructActors(producers, _actorContexts);
+        _actors = constructActors(_actorContexts);
         _done = true;
     }
 
@@ -71,10 +72,6 @@ public:
     void operator=(WorkloadContext&) = delete;
     WorkloadContext(WorkloadContext&&) = default;
     void operator=(WorkloadContext&&) = delete;
-
-    const yaml::Node& config() const {
-        return _config;
-    }
 
     /**
      * @return all the actors produced. This should only be called by workload drivers.
@@ -95,15 +92,18 @@ public:
         return std::mt19937_64{rng()};
     }
 
+    std::shared_ptr<config::WorkloadConfig> config() const {
+        return _config;
+    }
+
 private:
     friend class ActorContext;
 
     // helper methods used during construction
-    static ActorVector constructActors(const std::vector<ActorProducer>& producers,
-                                       const std::vector<std::unique_ptr<ActorContext>>&);
-    static std::vector<std::unique_ptr<ActorContext>> constructActorContexts(const yaml::Node&,
-                                                                             WorkloadContext*);
-    yaml::Node _config;
+    static ActorVector constructActors(const std::vector<std::unique_ptr<ActorContext>>&);
+    static std::vector<std::unique_ptr<ActorContext>> constructActorContexts(
+        const std::shared_ptr<config::WorkloadConfig>&, WorkloadContext*);
+    std::shared_ptr<config::WorkloadConfig> _config;
 
     std::mt19937_64 rng;
     metrics::Registry* const _registry;
@@ -117,17 +117,14 @@ private:
     bool _done;
 };
 
-// For some reason need to decl this; see impl below
-class PhaseContext;
-
 /**
  * Represents each `Actor:` block within a WorkloadConfig.
  */
 class ActorContext final {
 public:
-    ActorContext(const yaml::Node& config, WorkloadContext& workloadContext)
-        : _config{config}, _workload{&workloadContext}, _phaseContexts{} {
-        _phaseContexts = constructPhaseContexts(config, this);
+    ActorContext(std::shared_ptr<config::ActorConfig> config, WorkloadContext& workloadContext)
+        : _config{std::move(config)}, _workload{&workloadContext}, _phaseContexts{} {
+        _phaseContexts = constructPhaseContexts(_config, this);
     }
 
     // no copy or move
@@ -135,10 +132,6 @@ public:
     void operator=(ActorContext&) = delete;
     ActorContext(ActorContext&&) = default;
     void operator=(ActorContext&&) = delete;
-
-    const yaml::Node& config() const {
-        return _config;
-    }
 
     /**
      * Access top-level workload configuration.
@@ -270,6 +263,10 @@ public:
 
     // </Forwarding to delegates>
 
+    std::shared_ptr<config::ActorConfig> config() const {
+        return _config;
+    }
+
 private:
     /**
      * Apply metrics names conventions based on configuration.
@@ -279,13 +276,12 @@ private:
      * @return the fully-qualified metrics name e.g. "MyActor.0.inserts".
      */
     std::string metricsName(const std::string& operation, ActorId id) const {
-        return yaml::get<std::string>(_config, "Name") + ".id-" + std::to_string(id) + "." +
-            operation;
+        return _config->logName + ".id-" + std::to_string(id) + "." + operation;
     }
 
     static std::unordered_map<genny::PhaseNumber, std::unique_ptr<PhaseContext>>
-    constructPhaseContexts(const yaml::Node&, ActorContext*);
-    yaml::Node _config;
+    constructPhaseContexts(const std::shared_ptr<config::ActorConfig>&, ActorContext*);
+    std::shared_ptr<config::ActorConfig> _config;
     WorkloadContext* _workload;
     std::unordered_map<PhaseNumber, std::unique_ptr<PhaseContext>> _phaseContexts;
 };
@@ -294,8 +290,8 @@ private:
 class PhaseContext final {
 
 public:
-    PhaseContext(const yaml::Pair& config, const ActorContext& actorContext)
-        : _config{config}, _actor{&actorContext} {}
+    PhaseContext(std::shared_ptr<config::PhaseConfig> config, const ActorContext& actorContext)
+        : _config{std::move(config)}, _actor{&actorContext} {}
 
     // no copy or move
     PhaseContext(PhaseContext&) = delete;
@@ -303,20 +299,28 @@ public:
     PhaseContext(PhaseContext&&) = default;
     void operator=(PhaseContext&&) = delete;
 
-    const yaml::Pair& config() const {
+    std::shared_ptr<config::PhaseConfig> config() const {
         return _config;
     }
 
 private:
-    yaml::Pair _config;
+    std::shared_ptr<config::PhaseConfig> _config;
     const ActorContext* _actor;
 };
 
+template<class Actor>
+inline ActorVector produceGeneric(ActorContext& context){
+    ActorVector out{};
+    out.emplace_back(std::make_unique<Actor>(context));
+    return out;
+}
+
+/*
 inline ActorProducer makeThreadedProducer(ActorProducer producer){
     return [producer{std::move(producer)}](ActorContext& context) {
         ActorProducer::result_type out;
 
-        auto threads = yaml::get<int>(context.config(), "Threads");
+        auto threads = context.get<int>("Threads");
         for (int i = 0; i < threads; ++i)
             for (auto & actor : producer(context))
                 out.emplace_back(std::move(actor));
@@ -324,6 +328,11 @@ inline ActorProducer makeThreadedProducer(ActorProducer producer){
         return out;
     };
 }
+
+template<class Actor>
+inline ActorProducer makeGenericThreadedProducer(){
+    return makeThreadedProducer(&produceGeneric<Actor>);
+}*/
 
 }  // namespace genny
 

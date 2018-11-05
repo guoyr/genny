@@ -5,14 +5,17 @@
 
 #include <mongocxx/client_session.hpp>
 
+#include <gennylib/Actor.hpp>
 #include <gennylib/PhaseLoop.hpp>
+#include <gennylib/metrics.hpp>
 
 namespace genny::actor {
 
 class HelloWorld : public genny::Actor {
+
 public:
     struct PhaseConfig;
-    struct PhaseState;
+    struct ActorConfig;
 
 public:
     explicit HelloWorld(ActorContext& context);
@@ -20,14 +23,13 @@ public:
 
     void run() override;
 
-    static ActorVector producer(ActorContext& context);
-
 private:
     const ActorId _id;
 
     metrics::Timer _outputTimer;
     metrics::Counter _operations;
 
+    struct PhaseState;
     PhaseLoop<PhaseState> _loop;
 };
 

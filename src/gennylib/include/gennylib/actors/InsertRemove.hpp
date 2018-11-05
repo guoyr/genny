@@ -2,12 +2,13 @@
 #define HEADER_A5170346_CB57_4438_854F_20C3D99FF187_INCLUDED
 
 #include <iostream>
+#include <random>
 
 #include <mongocxx/pool.hpp>
 
 #include <gennylib/Actor.hpp>
 #include <gennylib/PhaseLoop.hpp>
-#include <gennylib/context.hpp>
+#include <gennylib/metrics.hpp>
 
 namespace genny::actor {
 
@@ -20,15 +21,13 @@ namespace genny::actor {
 class InsertRemove : public Actor {
 public:
     struct PhaseConfig;
-    struct PhaseState;
+    struct ActorConfig;
 
 public:
     explicit InsertRemove(ActorContext& context);
     ~InsertRemove() = default;
 
     void run() override;
-
-    static ActorVector producer(ActorContext& context);
 
 private:
     std::mt19937_64 _rng;
@@ -39,6 +38,7 @@ private:
     metrics::Timer _removeTimer;
     mongocxx::pool::entry _client;
 
+    struct PhaseState;
     PhaseLoop<PhaseState> _loop;
 };
 

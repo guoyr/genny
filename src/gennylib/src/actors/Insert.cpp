@@ -8,15 +8,21 @@
 #include <mongocxx/collection.hpp>
 #include <mongocxx/database.hpp>
 
-#include "log.hh"
 #include <bsoncxx/json.hpp>
+
+#include "log.hh"
+
+#include <gennylib/Cast.hpp>
+#include <gennylib/Parallelizable.hpp>
+#include <gennylib/config.hpp>
 #include <gennylib/context.hpp>
 #include <gennylib/value_generators.hpp>
+#include <gennylib/yaml-private.hh>
 
 namespace genny{
 
-struct actor::Insert::PhaseConfig {
-    PhaseConfig(const yaml::Pair& node) {
+struct actor::Insert::PhaseConfig : public config::PhaseConfig, public Iterable::PhaseConfig {
+    PhaseConfig(const yaml::Pair & node) : config::PhaseConfig(node), Iterable::PhaseConfig(node) {
         collection = yaml::get<std::string>(node, "Collection");
         db = yaml::get<std::string>(node, "Database");
         document = yaml::get<yaml::Node>(node,"Document");
@@ -27,16 +33,19 @@ struct actor::Insert::PhaseConfig {
     yaml::Node document;
 };
 
+struct actor::Insert::ActorConfig : public config::ActorConfig, public Parallelizable::ActorConfig {
+    ActorConfig(const yaml::Node& node)
+        : config::ActorConfig(node), Parallelizable::ActorConfig(node) {}
+};
 
 struct actor::Insert::PhaseState {
     PhaseState(PhaseContext& context, std::mt19937_64& rng, mongocxx::pool::entry& client, int id)
-        : config(context.config()),
-          database{client->database(config.db)},
-          collection{database.collection(config.collection)},
-          json_document{value_generators::makeDoc(config.document, rng)} {}
+        : config{std::dynamic_pointer_cast<PhaseConfig>(context.config())},
+          database{client->database(config->db)},
+          collection{database.collection(config->collection)},
+          json_document{value_generators::makeDoc(config->document, rng)} {}
 
-    PhaseConfig config;
-
+    std::shared_ptr<PhaseConfig> config;
     mongocxx::database database;
     mongocxx::collection collection;
     std::unique_ptr<value_generators::DocumentGenerator> json_document;
@@ -63,14 +72,9 @@ actor::Insert::Insert(ActorContext& context)
       _client{std::move(context.client())},
       _loop{context, _rng, _client, _id} {}
 
-ActorVector actor::Insert::producer(ActorContext& context) {
-    if (yaml::get<std::string>(context.config(), "Type") != "Insert") {
-        return {};
-    }
-
-    ActorVector out;
-    out.emplace_back(std::make_unique<actor::Insert>(context));
-    return out;
+namespace {
+// Register the Insert actor
+auto factoryInsert = std::make_shared<DefaultActorFactory<actor::Insert>>("Insert");
+auto registerInsert = Cast::Registration("Insert", factoryInsert);
 }
-
 } // genny

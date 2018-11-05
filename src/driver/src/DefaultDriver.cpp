@@ -11,18 +11,21 @@
 
 #include <mongocxx/instance.hpp>
 
+#include <gennylib/Cast.hpp>
 #include <gennylib/MetricsReporter.hpp>
 #include <gennylib/context.hpp>
+#include <gennylib/config.hpp>
 #include <gennylib/yaml-private.hh>
-
-#include <gennylib/actors/HelloWorld.hpp>
-#include <gennylib/actors/Insert.hpp>
-#include <gennylib/actors/InsertRemove.hpp>
-// NextActorHeaderHere
 
 #include "DefaultDriver.hpp"
 
 int genny::driver::DefaultDriver::run(const genny::driver::ProgramOptions& options) const {
+    if(options.shouldListActors){
+        for(const auto & pair : getCast().getFactories()){
+            std::cout << pair.first << " is " << pair.second->name() << std::endl;
+        }
+        return 0;
+    }
 
     genny::metrics::Registry metrics;
 
@@ -31,18 +34,9 @@ int genny::driver::DefaultDriver::run(const genny::driver::ProgramOptions& optio
 
     mongocxx::instance instance{};
 
-    auto config = yaml::loadFile(options.workloadFileName);
+    auto config = config::loadFile(options.workloadFileName);
     auto orchestrator = Orchestrator{};
-    auto producers = std::vector<genny::ActorProducer>{
-        genny::makeThreadedProducer(&genny::actor::HelloWorld::producer),
-        genny::makeThreadedProducer(&genny::actor::Insert::producer),
-        genny::makeThreadedProducer(&genny::actor::InsertRemove::producer),
-        // NextActorProducerHere
-    };
-    // clang-format on
-
-    auto workloadContext =
-        WorkloadContext{config, metrics, orchestrator, options.mongoUri, producers};
+    auto workloadContext = WorkloadContext{config, metrics, orchestrator, options.mongoUri};
 
     orchestrator.addRequiredTokens(
         int(std::distance(workloadContext.actors().begin(), workloadContext.actors().end())));
@@ -153,6 +147,7 @@ genny::driver::ProgramOptions::ProgramOptions(int argc, char** argv) {
     po::notify(vm);
 
     this->isHelp = vm.count("help") >= 1;
+    this->shouldListActors = vm.count("list-actors") >= 1;
     this->metricsFormat = vm["metrics-format"].as<std::string>();
     this->metricsOutputFileName = normalizeOutputFile(vm["metrics-output-file"].as<std::string>());
     this->mongoUri = vm["mongo-uri"].as<std::string>();

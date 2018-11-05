@@ -7,7 +7,7 @@ class Node;
 namespace genny::yaml {
 using Node = ::YAML::Node;
 struct Pair{
-    const Node primary;
-    const Node fallback;
+    const Node & primary;
+    const Node & fallback;
 };
 }

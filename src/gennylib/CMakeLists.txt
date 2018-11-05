@@ -7,8 +7,11 @@ add_library(gennylib SHARED
     src/version.cpp
 
     src/yaml.cpp
+    src/config.cpp
     src/context.cpp
     src/Orchestrator.cpp
+    src/Iterable.cpp
+    src/Parallelizable.cpp
 
     src/value_generators/parser.cpp
     src/value_generators/value_generators.cpp
@@ -65,6 +68,7 @@ install(EXPORT GennyLibraryConfig DESTINATION share/GennyLibrary/cmake)
 # This makes the project importable from the build directory
 export(TARGETS gennylib FILE GennyLibraryConfig.cmake)
 
+if(0)
 add_executable(test_gennylib
         test/context_test.cpp
     test/conventions_test.cpp
@@ -101,3 +105,4 @@ add_test(
         --success
         --out test_gennylib.junit.xml
 )
+endif(0)

@@ -20,6 +20,7 @@ struct ProgramOptions {
     std::string mongoUri;
     std::string description;
     bool isHelp = false;
+    bool shouldListActors = false;
 };
 
 /**
